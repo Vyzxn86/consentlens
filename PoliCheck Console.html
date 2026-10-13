@@ -1,0 +1,678 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>PoliCheck Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout concept: a governance console. One request pipeline across the top of the work area,
+   four role views (developer, privacy officer, regulator, end user) switched from the header. */
+:root{
+  --bg:#F2F5FA; --surface:#FFFFFF; --surface-2:#F6F8FC; --ink:#0F1C30; --muted:#566782; --line:#D8E0EB;
+  --accent:#1E6FD9; --accent-ink:#FFFFFF; --accent-soft:#E2EDFB;
+  --ok:#157148; --ok-soft:#DFF3E8; --warn:#8F5A08; --warn-soft:#FCEFD3; --bad:#B0303A; --bad-soft:#FAE4E6;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A111F; --surface:#121C2F; --surface-2:#0E1727; --ink:#E5EBF5; --muted:#92A2BA; --line:#24324A;
+    --accent:#5FA5F7; --accent-ink:#071223; --accent-soft:#14284A;
+    --ok:#52C58D; --ok-soft:#10301F; --warn:#E8B655; --warn-soft:#33270E; --bad:#F27C83; --bad-soft:#3A1519;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A111F; --surface:#121C2F; --surface-2:#0E1727; --ink:#E5EBF5; --muted:#92A2BA; --line:#24324A;
+  --accent:#5FA5F7; --accent-ink:#071223; --accent-soft:#14284A;
+  --ok:#52C58D; --ok-soft:#10301F; --warn:#E8B655; --warn-soft:#33270E; --bad:#F27C83; --bad-soft:#3A1519;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);padding-inline:20px;padding-block:0 28px;margin:0}
+h1,h2,h3,h4{margin:0;font-weight:600;text-wrap:balance}
+h2{font-size:15px;letter-spacing:.01em}
+h3{font-size:13px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin-inline:auto}
+.mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.caps{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding-block:14px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand b{font-size:17px;letter-spacing:.01em}
+.brand span{font-size:12px;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tab{border:0;background:transparent;padding:7px 12px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:7px;font-weight:500;color:var(--muted)}
+.tab:hover{color:var(--ink)}
+.tab[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.badge{background:var(--warn-soft);color:var(--warn);border-radius:99px;font-size:11px;font-weight:600;padding:0 7px;min-width:20px;text-align:center}
+.tab[aria-pressed="true"] .badge{background:var(--accent-ink);color:var(--accent)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn[disabled]{opacity:.55;cursor:default}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.panel>h2{margin-bottom:12px}
+.launch>.launch-head h2{margin-bottom:0}
+.role{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:14px;color:var(--muted)}
+.role b{color:var(--ink)}
+.dev-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;align-items:start}
+@media (max-width:900px){.dev-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* scenarios */
+.scn-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+@media (max-width:1000px){.scn-list{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}}
+.launch{margin-bottom:18px}
+.launch-head{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:12px}
+.launch-head h2{margin:0}
+.scn{text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:9px 11px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.scn:hover{border-color:var(--accent)}
+.scn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.scn b{font-size:13px}
+.scn span{font-size:12px;color:var(--muted)}
+
+/* form */
+.fld{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;min-width:0}
+.fld>label,.fld>.lbl{font-size:12px;font-weight:500;color:var(--muted)}
+select,input[type=number],textarea{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+textarea{resize:vertical;min-height:58px}
+.chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 10px}
+.chk{display:flex;gap:7px;align-items:flex-start;font-size:13px;cursor:pointer}
+.chk input{margin-top:3px;accent-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.row2{grid-template-columns:1fr}}
+.cond[hidden]{display:none}
+
+/* pipeline */
+.pipe{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+@media (max-width:1100px){.pipe{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.pipe{grid-template-columns:minmax(0,1fr)}}
+.node{position:relative;border:1.5px solid var(--line);border-radius:10px;padding:10px 10px 9px;background:var(--surface-2);display:flex;flex-direction:column;gap:3px;min-height:104px}
+.node .nm{font-weight:600;font-size:12.5px;line-height:1.25}
+.node .ds{font-size:11.5px;color:var(--muted);line-height:1.35}
+.node .stt{margin-top:auto;font-size:12px;font-weight:600;font-family:var(--mono)}
+.node .ix{position:absolute;top:-9px;left:10px;background:var(--bg);padding:0 6px;font-size:10.5px;font-family:var(--mono);color:var(--muted)}
+@media (min-width:1101px){.node:not(:last-child)::after{content:"";position:absolute;right:-11px;top:50%;width:7px;height:7px;border-top:2px solid var(--line);border-right:2px solid var(--line);transform:translateY(-50%) rotate(45deg)}}
+.node.st-run{border-color:var(--accent);background:var(--accent-soft)}
+.node.st-run .stt{color:var(--accent)}
+.node.st-pass{border-color:var(--ok);background:var(--ok-soft)}
+.node.st-pass .stt{color:var(--ok)}
+.node.st-fail{border-color:var(--bad);background:var(--bad-soft)}
+.node.st-fail .stt{color:var(--bad)}
+.node.st-warn{border-color:var(--warn);background:var(--warn-soft)}
+.node.st-warn .stt{color:var(--warn)}
+.node.st-skip{border-style:dashed;opacity:.62}
+.node.st-skip .stt{color:var(--muted)}
+
+.verdict{border-radius:10px;padding:12px 14px;border:1.5px solid var(--line);background:var(--surface-2);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.verdict .vt{font-weight:600;font-size:15px}
+.verdict .vb{flex:1 1 260px;min-width:0}
+.verdict.v-bad{border-color:var(--bad);background:var(--bad-soft)}
+.verdict.v-bad .vt{color:var(--bad)}
+.verdict.v-warn{border-color:var(--warn);background:var(--warn-soft)}
+.verdict.v-warn .vt{color:var(--warn)}
+.verdict.v-ok{border-color:var(--ok);background:var(--ok-soft)}
+.verdict.v-ok .vt{color:var(--ok)}
+
+.trace{display:grid;gap:12px}
+.tsec{border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--surface)}
+.tsec h3{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.chkrow{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:4px 0;border-top:1px solid var(--line)}
+.chkrow:first-of-type{border-top:0}
+.ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;margin-top:1px}
+.ic.ok{background:var(--ok-soft);color:var(--ok)}
+.ic.bad{background:var(--bad-soft);color:var(--bad)}
+.ic.warn{background:var(--warn-soft);color:var(--warn)}
+.chkrow b{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:1px 9px;font-size:11.5px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.neu{background:var(--surface-2);color:var(--muted);border-color:var(--line)}
+.pill.inf{background:var(--accent-soft);color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+
+.meter{position:relative;height:12px;border-radius:99px;background:linear-gradient(90deg,var(--ok-soft) 0 30%,var(--warn-soft) 30% 60%,var(--bad-soft) 60% 100%);border:1px solid var(--line);margin:8px 0 18px}
+.meter i{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
+.meter u{position:absolute;top:14px;font-size:10px;text-decoration:none;color:var(--muted);transform:translateX(-50%);font-family:var(--mono)}
+.sig{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;padding:3px 0;align-items:baseline}
+.sig b{font-family:var(--mono);color:var(--warn);font-weight:500}
+details.logic{margin-top:14px}
+details.logic summary{cursor:pointer;font-weight:500;color:var(--accent)}
+pre.code{margin:8px 0 0;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;overflow-x:auto;font:12px/1.55 var(--mono);color:var(--ink)}
+.cm{color:var(--muted)}
+
+/* review */
+.stats{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:150px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums;line-height:1.2}
+.qcard{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;padding:14px;margin-bottom:14px}
+.qcard.high{border-left-color:var(--bad)}
+.qhead{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-bottom:10px}
+.qhead h3{font-size:15px}
+.qgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:12px}
+@media (max-width:760px){.qgrid{grid-template-columns:minmax(0,1fr)}}
+.suggest{background:var(--surface-2);border:1px dashed var(--line);border-radius:8px;padding:9px 11px;margin-bottom:10px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.err{color:var(--bad);font-size:12px}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:18px;color:var(--muted);text-align:center}
+.dcard{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;padding:8px 0;border-top:1px solid var(--line)}
+
+/* regulator */
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.fchip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:4px 12px;cursor:pointer;font-size:12.5px}
+.fchip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.integrity{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border-radius:10px;border:1.5px solid var(--line);margin-bottom:12px;background:var(--surface)}
+.integrity.good{border-color:var(--ok);background:var(--ok-soft)}
+.integrity.broke{border-color:var(--bad);background:var(--bad-soft)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;font-weight:500;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.bad-row td{background:var(--bad-soft)}
+td.nw{white-space:nowrap}
+.hash{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* user */
+.u-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:18px}
+.grant{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.grant.off{opacity:.7}
+.kv{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 10px;font-size:13px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.u-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.u-cols{grid-template-columns:minmax(0,1fr)}}
+.feed{display:grid;gap:0}
+.fi{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;padding:9px 0;border-top:1px solid var(--line)}
+.fi:first-child{border-top:0}
+.ad{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface-2)}
+.ad h4{font-size:13px;margin-bottom:6px}
+.ad.risky{border-color:var(--warn)}
+footer{margin-top:22px;color:var(--muted);font-size:12px;max-width:80ch}
+@media (prefers-reduced-motion:no-preference){.node{transition:background .25s,border-color .25s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M5 25 C3 13 9 5 15 3 C13 9 14 17 5 25Z" fill="#1B6FD6"/><path d="M11 26 C9 16 15 8 22 6 C19 12 20 20 11 26Z" fill="#2AA7E8"/><path d="M17 27 C16 19 21 12 28 11 C25 16 26 22 17 27Z" fill="#00C0E8"/></svg>
+      <div><b>PoliCheck</b><br><span>Governance gateway for platform data requests</span></div>
+    </div>
+    <nav class="tabs" aria-label="Role views">
+      <button class="tab" id="tab-dev" data-view="dev" aria-pressed="true">Developer</button>
+      <button class="tab" id="tab-review" data-view="review" aria-pressed="false">Privacy officer <span class="badge" id="qbadge">0</span></button>
+      <button class="tab" id="tab-regulator" data-view="regulator" aria-pressed="false">Regulator</button>
+      <button class="tab" id="tab-user" data-view="user" aria-pressed="false">End user</button>
+    </nav>
+    <span class="spacer"></span>
+    <button class="btn" id="reset">Reset demo</button>
+  </header>
+
+  <!-- DEVELOPER -->
+  <section id="view-dev">
+    <p class="role"><b>Third-party developer.</b> <span>Every data request goes through PoliCheck before the platform releases anything. Pick a scenario or edit the request, then send it.</span></p>
+    <div class="panel launch">
+      <div class="launch-head"><h2>Incoming request</h2><span class="muted small">Pick a scenario, or edit the request further down.</span><span class="spacer"></span><button class="btn primary" id="send" type="button">Send through PoliCheck</button></div>
+      <div class="scn-list" id="scn-list"></div>
+    </div>
+    <ol class="pipe" id="pipe"></ol>
+    <div class="verdict" id="verdict"><div class="vb"><div class="vt">Ready</div><div class="muted">Send the request to see which stage stops it, flags it or lets it through.</div></div></div>
+    <div class="dev-grid">
+      <div class="panel">
+        <h2>Edit the request</h2>
+        <form id="reqform" onsubmit="return false">
+          <div class="fld"><label for="f-app">Requesting app</label>
+            <select id="f-app"></select></div>
+          <div class="fld"><span class="lbl">Data requested</span><div class="chk-grid" id="f-cats"></div></div>
+          <div class="row2">
+            <div class="fld"><label for="f-purpose">Declared purpose</label><select id="f-purpose"></select></div>
+            <div class="fld"><label for="f-days">Retention (days)</label><input type="number" id="f-days" min="1" max="3650"></div>
+          </div>
+          <div class="row2">
+            <div class="fld"><label for="f-subjects">Whose data</label>
+              <select id="f-subjects"><option value="user">Only the consenting user</option><option value="user_friends">The user and their friends</option></select></div>
+            <div class="fld"><label for="f-proc">What the app does with it</label>
+              <select id="f-proc"><option value="store">Store and use as declared</option><option value="derive">Derive new traits</option><option value="audience">Build an ad audience</option></select></div>
+          </div>
+          <div class="fld cond" id="c-traits" hidden><span class="lbl">Traits to infer</span><div class="chk-grid" id="f-traits"></div></div>
+          <div class="fld cond" id="c-crit" hidden><span class="lbl">Targeting criteria</span><div class="chk-grid" id="f-crit"></div></div>
+          <label class="chk"><input type="checkbox" id="f-other"> <span>Model was trained on other people's data and is applied to people who never took part</span></label>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Why PoliCheck decided this</h2>
+        <div class="trace" id="trace"><div class="empty">The rule-by-rule explanation appears here after you send a request.</div></div>
+        <details class="logic" id="logic"><summary>Show decision logic</summary><pre class="code" id="pseudo"></pre></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIVACY OFFICER -->
+  <section id="view-review" hidden>
+    <p class="role"><b>Privacy and compliance team.</b> <span>PoliCheck flags unclear or high-risk cases. It never decides them. A named person approves or rejects each one, with a reason, and the decision goes into the audit log.</span></p>
+    <div class="stats" id="stats"></div>
+    <h2 style="margin-bottom:10px">Waiting for review</h2>
+    <div id="queue"></div>
+    <h2 style="margin:20px 0 6px">Decided</h2>
+    <div class="panel" id="decided"></div>
+  </section>
+
+  <!-- REGULATOR -->
+  <section id="view-regulator" hidden>
+    <p class="role"><b>Regulator or independent auditor.</b> <span>Read-only access to what each organisation asked for, what PoliCheck decided and who overrode it. Each entry is chained to the one before it.</span></p>
+    <div class="integrity" id="integrity"></div>
+    <div class="bar" id="filters"></div>
+    <div class="tablewrap"><table id="logtable"></table></div>
+  </section>
+
+  <!-- END USER -->
+  <section id="view-user" hidden>
+    <p class="role"><b>Aisha, platform user (demo account).</b> <span>Consent is a set of limits you can read and withdraw. PoliCheck enforces them on every request.</span></p>
+    <h2 style="margin-bottom:10px">What apps may use</h2>
+    <div class="u-grid" id="grants"></div>
+    <div class="u-cols">
+      <div class="panel"><h2>Activity on your data</h2><div class="feed" id="feed"></div></div>
+      <div class="panel"><h2>Political ads, explained</h2><div id="ads"></div></div>
+    </div>
+  </section>
+
+  <footer>Prototype with simulated data. Nothing leaves your browser. The risk detector here is a rule-based scorer so every point of the score can be explained on screen. A production deployment would pair it with a trained classifier and keep the human review step.</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.prototype.slice.call(document.querySelectorAll(s));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- reference data ---------- */
+const CATS={public_profile:'Public profile',page_likes:'Page likes',age_range:'Age range',region:'Region',declared_interests:'Declared interests',friends_list:'Friends list',friends_likes:"Friends' likes",messages:'Private messages'};
+const PURPOSES={personality_quiz:'Personality quiz',academic_research:'Academic research',audience_analytics:'Audience analytics',political_ads:'Political advertising'};
+const NEEDS={personality_quiz:['public_profile'],academic_research:['public_profile'],audience_analytics:['page_likes','age_range'],political_ads:['age_range','region','declared_interests']};
+const APPS={quizbuddy:{name:'QuizBuddy',kind:'Quiz app'},northbeam:{name:'Northbeam Analytics',kind:'Analytics firm'},civicreach:{name:'Civic Reach',kind:'Campaign tool'}};
+const TRAITS={personality:{label:'Personality profile',w:20},political_lean:{label:'Political leaning',w:30},religion:{label:'Religion',w:30},vulnerability:{label:'Fear and vulnerability response',w:25}};
+const CRIT={
+  age:{label:'Age 25 to 34',src:'declared',inf:false},
+  region:{label:'Region: Selangor',src:'declared',inf:false},
+  interest:{label:'Interest: environment',src:'declared',inf:false},
+  neuro:{label:'High neuroticism',src:'inferred model',inf:true},
+  open:{label:'Low openness',src:'inferred model',inf:true},
+  undecided:{label:'Undecided voter',src:'inferred model',inf:true},
+  fear:{label:'Responds to fear-based messages',src:'inferred model',inf:true}
+};
+const DEFAULT_GRANTS={
+  quizbuddy:{cats:['public_profile','page_likes'],purpose:'personality_quiz',days:30,secondary:false,friends:false,active:true},
+  northbeam:{cats:['page_likes','age_range'],purpose:'audience_analytics',days:90,secondary:false,friends:false,active:true},
+  civicreach:{cats:['age_range','region','declared_interests'],purpose:'political_ads',days:30,secondary:false,friends:false,active:true}
+};
+const SCN=[
+ {t:'Quiz app reaches for friends',s:'The 2014 pattern',r:{app:'quizbuddy',cats:['public_profile','friends_list','friends_likes'],purpose:'academic_research',subjects:'user_friends',proc:'derive',traits:['personality','political_lean'],crit:[],other:true,days:365}},
+ {t:'Ordinary personality quiz',s:'Passes, data minimised',r:{app:'quizbuddy',cats:['public_profile','page_likes'],purpose:'personality_quiz',subjects:'user',proc:'store',traits:[],crit:[],other:false,days:30}},
+ {t:'Analytics firm infers traits',s:'Consent valid, inference risky',r:{app:'northbeam',cats:['page_likes','age_range'],purpose:'audience_analytics',subjects:'user',proc:'derive',traits:['personality','political_lean'],crit:[],other:true,days:30}},
+ {t:'Campaign targets by fear',s:'Inferred psychographics',r:{app:'civicreach',cats:['age_range','region','declared_interests'],purpose:'political_ads',subjects:'user',proc:'audience',traits:[],crit:['age','neuro','open','undecided'],other:false,days:30}},
+ {t:'Campaign uses declared data',s:'Passes, ad explained',r:{app:'civicreach',cats:['age_range','region','declared_interests'],purpose:'political_ads',subjects:'user',proc:'audience',traits:[],crit:['age','region','interest'],other:false,days:30}}
+];
+const PSEUDO=
+`<span class="cm">// PoliCheck decision logic (the prototype runs exactly these rules)</span>
+FUNCTION handle_request(req, grants):
+    grant = grants[req.app]
+
+    <span class="cm">// 1. Consent Firewall: clear violations are rejected automatically</span>
+    IF grant missing OR revoked:            RETURN reject("no active grant")
+    IF req.data NOT IN grant.data:          RETURN reject("outside granted data")
+    IF req.purpose != grant.purpose:        RETURN reject("purpose mismatch")
+    IF req.reaches_friends:                 RETURN reject("non-consenting third parties")
+    IF req.retention > grant.duration:      RETURN reject("retention too long")
+    released = req.data INTERSECT needed_for(req.purpose)   <span class="cm">// data minimisation</span>
+
+    <span class="cm">// 2. Signals, never verdicts</span>
+    score   = risk_score(req)     <span class="cm">// inferred traits, ad audience, model trained on others ...</span>
+    flagged = monitor(req)        <span class="cm">// inferred psychographics in targeting criteria?</span>
+
+    <span class="cm">// 3. People decide the unclear cases</span>
+    IF score >= 30 OR flagged:
+        log("escalated", score, flagged)
+        RETURN queue_for_human_review(req)
+
+    <span class="cm">// 4. Everything else proceeds, and is recorded</span>
+    log("released", released)
+    RETURN release(released)
+
+ON human_decision(item, verdict, note):
+    REQUIRE note
+    log(verdict, reviewer, note,
+        override = (verdict == approve AND ai_suggested_reject))`;
+
+/* ---------- sha256 (synchronous, for the audit chain) ---------- */
+function sha256(msg){
+  if(!sha256.K){const k=[],h=[];let n=2;while(k.length<64){let p=true;for(let d=2;d*d<=n;d++)if(n%d===0){p=false;break;}
+    if(p){k.push(Math.floor((Math.cbrt(n)%1)*4294967296));h.push(Math.floor((Math.sqrt(n)%1)*4294967296));}n++;}sha256.K=k;sha256.H=h;}
+  const K=sha256.K,bytes=new TextEncoder().encode(msg),l=bytes.length,bl=l*8,pl=((l+9+63)>>6)<<6,buf=new Uint8Array(pl);
+  buf.set(bytes);buf[l]=0x80;const dv=new DataView(buf.buffer);dv.setUint32(pl-8,Math.floor(bl/4294967296));dv.setUint32(pl-4,bl>>>0);
+  let H=sha256.H.slice();const w=new Uint32Array(64),rr=(x,n)=>(x>>>n)|(x<<(32-n));
+  for(let o=0;o<pl;o+=64){
+    for(let i=0;i<16;i++)w[i]=dv.getUint32(o+i*4);
+    for(let i=16;i<64;i++){const a=w[i-15],b=w[i-2];w[i]=(w[i-16]+(rr(a,7)^rr(a,18)^(a>>>3))+w[i-7]+(rr(b,17)^rr(b,19)^(b>>>10)))|0;}
+    let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(let i=0;i<64;i++){const t1=(h+(rr(e,6)^rr(e,11)^rr(e,25))+((e&f)^(~e&g))+K[i]+w[i])|0,t2=((rr(a,2)^rr(a,13)^rr(a,22))+((a&b)^(a&c)^(b&c)))|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+    H=[H[0]+a,H[1]+b,H[2]+c,H[3]+d,H[4]+e,H[5]+f,H[6]+g,H[7]+h].map(x=>x|0);
+  }
+  return H.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+window.__sha256=sha256;
+
+/* ---------- state ---------- */
+let grants,log,queue,decided,ads,stats,qid,tampered,filter='all',busy=false,curScn=0;
+const reduce=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const list=a=>a.map(c=>CATS[c]).join(', ');
+const fmtT=ts=>new Date(ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+/* ---------- engine ---------- */
+function consentFirewall(r){
+  const g=grants[r.app],checks=[],add=(ok,rule,detail)=>checks.push({ok,rule,detail});
+  if(!g||!g.active){
+    add(false,'Active grant',g?'The user withdrew this permission.':'No grant on record.');
+    return {pass:false,checks,released:[],withheld:[]};
+  }
+  add(true,'Active grant','The user has an active grant for '+APPS[r.app].name+'.');
+  const out=r.cats.filter(c=>g.cats.indexOf(c)<0);
+  add(out.length===0,'Data categories',out.length?'Not granted: '+list(out)+'.':'Every requested category is inside the grant.');
+  add(r.purpose===g.purpose,'Declared purpose',r.purpose===g.purpose?'"'+PURPOSES[r.purpose]+'" matches the grant.':'Request says "'+PURPOSES[r.purpose]+'" but the user granted "'+PURPOSES[g.purpose]+'".');
+  add(r.subjects==='user'||g.friends,'Whose data',r.subjects==='user'?'Only the consenting user.':'Reaches friends who never used this app and cannot consent.');
+  add(r.days<=g.days,'Retention',r.days<=g.days?r.days+' days is within the '+g.days+'-day limit.':r.days+' days exceeds the '+g.days+'-day limit.');
+  const sec=r.proc==='audience'&&g.purpose!=='political_ads';
+  add(!sec,'Secondary use',sec?'Building an ad audience is secondary use. This grant forbids it.':'No secondary use requested.');
+  const pass=checks.every(c=>c.ok);
+  let released=[],withheld=[];
+  if(pass){const need=NEEDS[r.purpose]||[];released=r.cats.filter(c=>need.indexOf(c)>=0);withheld=r.cats.filter(c=>need.indexOf(c)<0);}
+  return {pass,checks,released,withheld};
+}
+function riskDetector(r){
+  const sig=[];let s=0;const add=(p,l)=>{sig.push({p,l});s+=p;};
+  if(r.proc==='derive'){
+    add(25,'Derives new traits from behavioural data');
+    const tw=Math.min(40,r.traits.reduce((a,t)=>a+TRAITS[t].w,0));
+    if(tw)add(tw,'Sensitive traits inferred: '+r.traits.map(t=>TRAITS[t].label).join(', '));
+  }
+  if(r.proc==='audience'){
+    add(15,'Builds an audience for ad delivery');
+    const inf=r.crit.filter(k=>CRIT[k].inf);
+    if(inf.length)add(Math.min(45,inf.length*15),inf.length+' inferred psychographic criteria used for targeting');
+  }
+  if(r.purpose==='political_ads')add(10,'Political context');
+  if(r.other)add(15,"Model trained on other people's data, applied to people who never took part");
+  if(r.cats.length>=4)add(10,'Four or more data categories combined');
+  s=Math.min(100,s);
+  const band=s<30?'Low':s<60?'Uncertain':'High';
+  return {score:s,band,signals:sig};
+}
+function monitor(r){
+  const crit=r.crit.map(k=>CRIT[k]),inferred=crit.filter(c=>c.inf);
+  return {payer:APPS[r.app].name,purpose:PURPOSES[r.purpose],crit,inferred,flag:inferred.length>0};
+}
+function canon(e){return [e.n,e.ts,e.who,e.data,e.purpose,e.consent,e.risk,e.decision,e.by,e.override,e.detail,e.prev].join('|');}
+function addLog(e){
+  const prev=log.length?log[log.length-1].hash:'0'.repeat(64);
+  const en=Object.assign({n:log.length+1,prev:prev},e);en.hash=sha256(canon(en));log.push(en);return en;
+}
+function newAd(item,by,ts){
+  const m=item.mon;ads.unshift({payer:item.A,crit:m.crit,inferred:m.inferred,by:by,ts:ts});
+}
+function runRequest(r,opts){
+  opts=opts||{};const ts=opts.ts||Date.now(),A=APPS[r.app].name,dl=list(r.cats)||'none',P=PURPOSES[r.purpose];
+  stats.total++;
+  const cf=consentFirewall(r),out={r,A,cf,ts};
+  if(!cf.pass){
+    out.decision='rejected';
+    out.entry=addLog({ts,who:A,data:dl,purpose:P,consent:'violation',risk:'n/a',decision:'rejected',by:'system',override:false,detail:cf.checks.filter(c=>!c.ok).map(c=>c.rule).join('; '),sample:!!opts.sample});
+    return out;
+  }
+  const rk=riskDetector(r),mon=(r.proc==='audience'||r.purpose==='political_ads')?monitor(r):null;
+  out.rk=rk;out.mon=mon;
+  const flagged=rk.band!=='Low'||(mon&&mon.flag);
+  const rl=rk.band+' '+rk.score;
+  if(flagged){
+    stats.escalated++;
+    const item={id:'R-'+(++qid),r,A,cf,rk,mon,ts,rec:(rk.band==='High'||(mon&&mon.flag))?'reject':'judge'};
+    queue.push(item);out.item=item;out.decision='escalated';
+    out.entry=addLog({ts,who:A,data:dl,purpose:P,consent:'valid',risk:rl,decision:'escalated',by:'system',override:false,detail:'awaiting human review',sample:!!opts.sample});
+  }else{
+    out.decision='released';
+    out.entry=addLog({ts,who:A,data:dl,purpose:P,consent:'valid',risk:rl,decision:'released (minimised)',by:'system',override:false,detail:'released: '+(list(cf.released)||'none')+(cf.withheld.length?'; withheld: '+list(cf.withheld):''),sample:!!opts.sample});
+    if(mon)newAd({A,mon},'system',ts);
+  }
+  return out;
+}
+function decide(id,verdict,note){
+  const i=queue.findIndex(q=>q.id===id);if(i<0)return;const it=queue.splice(i,1)[0],ts=Date.now();
+  const ap=verdict==='approve';
+  decided.unshift({item:it,verdict,note,ts});
+  addLog({ts,who:it.A,data:list(it.r.cats),purpose:PURPOSES[it.r.purpose],consent:'valid',risk:it.rk.band+' '+it.rk.score,decision:ap?'approved by reviewer':'rejected by reviewer',by:'Privacy officer',override:ap&&it.rec==='reject',detail:note});
+  if(ap&&it.mon)newAd(it,'reviewer',ts);
+}
+
+/* ---------- form ---------- */
+function fillStatic(){
+  $('#f-app').innerHTML=Object.keys(APPS).map(k=>'<option value="'+k+'">'+APPS[k].name+' ('+APPS[k].kind+')</option>').join('');
+  $('#f-purpose').innerHTML=Object.keys(PURPOSES).map(k=>'<option value="'+k+'">'+PURPOSES[k]+'</option>').join('');
+  $('#f-cats').innerHTML=Object.keys(CATS).map(k=>'<label class="chk"><input type="checkbox" id="cat-'+k+'" value="'+k+'"><span>'+CATS[k]+'</span></label>').join('');
+  $('#f-traits').innerHTML=Object.keys(TRAITS).map(k=>'<label class="chk"><input type="checkbox" id="trait-'+k+'" value="'+k+'"><span>'+TRAITS[k].label+'</span></label>').join('');
+  $('#f-crit').innerHTML=Object.keys(CRIT).map(k=>'<label class="chk"><input type="checkbox" id="crit-'+k+'" value="'+k+'"><span>'+CRIT[k].label+(CRIT[k].inf?' <em class="muted">(inferred)</em>':'')+'</span></label>').join('');
+  $('#scn-list').innerHTML=SCN.map((s,i)=>'<button type="button" class="scn" id="scn-'+(i+1)+'" data-i="'+i+'" aria-pressed="false"><b>'+(i+1)+'. '+s.t+'</b><span>'+s.s+'</span></button>').join('');
+  $('#pipe').innerHTML=[
+    ['Consent Firewall','Is the request inside what the user granted?'],
+    ['AI Inference Risk Detector','Is ordinary data becoming a sensitive inference?'],
+    ['Political Targeting Monitor','Who is targeted, and using what?'],
+    ['Human review','A person decides unclear or high-risk cases.'],
+    ['Audit log','Every decision is recorded and chained.']
+  ].map((n,i)=>'<li class="node st-idle" id="n'+i+'"><span class="ix">'+(i+1)+'</span><span class="nm">'+n[0]+'</span><span class="ds">'+n[1]+'</span><span class="stt">Waiting</span></li>').join('');
+  $('#pseudo').innerHTML=PSEUDO;
+}
+function syncCond(){
+  $('#c-traits').hidden=$('#f-proc').value!=='derive';
+  $('#c-crit').hidden=$('#f-proc').value!=='audience';
+}
+function writeForm(r){
+  $('#f-app').value=r.app;$('#f-purpose').value=r.purpose;$('#f-days').value=r.days;$('#f-subjects').value=r.subjects;$('#f-proc').value=r.proc;$('#f-other').checked=!!r.other;
+  Object.keys(CATS).forEach(k=>{$('#cat-'+k).checked=r.cats.indexOf(k)>=0;});
+  Object.keys(TRAITS).forEach(k=>{$('#trait-'+k).checked=r.traits.indexOf(k)>=0;});
+  Object.keys(CRIT).forEach(k=>{$('#crit-'+k).checked=r.crit.indexOf(k)>=0;});
+  syncCond();
+}
+function readForm(){
+  const p=$('#f-proc').value;
+  return {app:$('#f-app').value,purpose:$('#f-purpose').value,days:Math.max(1,parseInt($('#f-days').value,10)||1),subjects:$('#f-subjects').value,proc:p,other:$('#f-other').checked,
+    cats:Object.keys(CATS).filter(k=>$('#cat-'+k).checked),
+    traits:p==='derive'?Object.keys(TRAITS).filter(k=>$('#trait-'+k).checked):[],
+    crit:p==='audience'?Object.keys(CRIT).filter(k=>$('#crit-'+k).checked):[]};
+}
+function pickScn(i){curScn=i;$$('.scn').forEach((b,j)=>b.setAttribute('aria-pressed',j===i?'true':'false'));writeForm(SCN[i].r);}
+
+/* ---------- gateway rendering ---------- */
+function setNode(i,st,txt){const n=$('#n'+i);n.className='node st-'+st;n.querySelector('.stt').textContent=txt;}
+function resetPipe(){for(let i=0;i<5;i++)setNode(i,'idle','Waiting');}
+function plan(o){
+  const a=[];
+  if(o.decision==='rejected'){
+    const k=o.cf.checks.filter(c=>!c.ok).length;
+    a.push(['fail',k+(k===1?' rule':' rules')+' failed'],['skip','Not reached'],['skip','Not reached'],['skip','Not needed'],['pass','Recorded #'+o.entry.n]);
+  }else{
+    a.push(['pass','Within grant']);
+    a.push([o.rk.band==='Low'?'pass':'warn','Score '+o.rk.score+' · '+o.rk.band]);
+    a.push(o.mon?[o.mon.flag?'warn':'pass',o.mon.flag?'Flagged':'Recorded']:['skip','Not applicable']);
+    a.push(o.decision==='escalated'?['warn','Queued '+o.item.id]:['skip','Not needed']);
+    a.push(['pass','Recorded #'+o.entry.n]);
+  }
+  return a;
+}
+async function animate(o){
+  busy=true;$('#send').disabled=true;resetPipe();$('#trace').innerHTML='';
+  const v=$('#verdict');v.className='verdict';v.innerHTML='<div class="vb"><div class="vt">Checking…</div></div>';
+  const pl=plan(o);
+  for(let i=0;i<5;i++){
+    if(!reduce()){setNode(i,'run','Checking…');await sleep(i===4?260:420);}
+    setNode(i,pl[i][0],pl[i][1]);
+  }
+  showVerdict(o);showTrace(o);busy=false;$('#send').disabled=false;
+}
+function showVerdict(o){
+  const v=$('#verdict');let cls,t,b,go='';
+  if(o.decision==='rejected'){
+    const bad=o.cf.checks.filter(c=>!c.ok);cls='v-bad';t='Rejected at the Consent Firewall';
+    b=esc(bad[0].detail)+(bad.length>1?' <span class="muted">Plus '+(bad.length-1)+' more.</span>':'')+' <span class="muted">Automatic, because the request sits outside what the user granted.</span>';
+    go='<button class="btn" data-go="user">What Aisha sees</button>';
+  }else if(o.decision==='escalated'){
+    cls='v-warn';t='Escalated to a human reviewer';
+    b='Risk '+o.rk.score+' ('+o.rk.band+')'+(o.mon&&o.mon.flag?', inferred traits found in the targeting criteria':'')+'. Nothing is released until a person decides.';
+    go='<button class="btn primary" data-go="review">Open review queue</button>';
+  }else{
+    cls='v-ok';t='Released with data minimisation';
+    b='Released: '+esc(list(o.cf.released)||'nothing')+'.'+(o.cf.withheld.length?' Withheld: '+esc(list(o.cf.withheld))+' (not needed for this purpose).':'')+(o.mon?' Audience recorded and the ad explanation published.':'');
+    go=o.mon?'<button class="btn" data-go="user">Ad explanation</button>':'';
+  }
+  v.className='verdict '+cls;
+  v.innerHTML='<div class="vb"><div class="vt">'+t+'</div><div>'+b+'</div></div>'+go+'<button class="btn" data-go="regulator">Audit log entry #'+o.entry.n+'</button>';
+}
+function ico(k){return '<span class="ic '+k+'">'+(k==='ok'?'✓':k==='bad'?'✕':'!')+'</span>';}
+function showTrace(o){
+  let h='<div class="tsec"><h3>1. Consent Firewall '+(o.cf.pass?'<span class="pill ok">Within grant</span>':'<span class="pill bad">Rejected</span>')+'</h3>';
+  h+=o.cf.checks.map(c=>'<div class="chkrow">'+ico(c.ok?'ok':'bad')+'<div><b>'+c.rule+'.</b> '+esc(c.detail)+'</div></div>').join('');
+  if(o.cf.pass){
+    h+='<div class="chkrow">'+ico('ok')+'<div><b>Data minimisation.</b> Released <span class="chips" style="display:inline-flex;vertical-align:middle">'+(o.cf.released.map(c=>'<span class="pill ok">'+CATS[c]+'</span>').join('')||'<span class="pill neu">nothing</span>')+'</span>'+(o.cf.withheld.length?' Withheld <span class="chips" style="display:inline-flex;vertical-align:middle">'+o.cf.withheld.map(c=>'<span class="pill neu">'+CATS[c]+'</span>').join('')+'</span>':'')+'</div></div>';
+  }
+  h+='</div>';
+  if(!o.cf.pass){
+    h+='<div class="tsec"><h3>Later stages</h3><span class="muted">Not reached. A clear violation stops here, so no inference runs on data the user never shared.</span></div>';
+  }else{
+    const rk=o.rk,cls=rk.band==='Low'?'ok':rk.band==='High'?'bad':'warn';
+    h+='<div class="tsec"><h3>2. AI Inference Risk Detector <span class="pill '+cls+'">'+rk.band+' · '+rk.score+'</span></h3>';
+    h+='<div class="meter"><i style="left:'+rk.score+'%"></i><u style="left:30%">30</u><u style="left:60%">60</u></div>';
+    h+=(rk.signals.length?rk.signals.map(s=>'<div class="sig"><b>+'+s.p+'</b><span>'+esc(s.l)+'</span></div>').join(''):'<div class="muted">No risk signals. The request does what it declared and nothing more.</div>');
+    h+='<p class="small muted" style="margin:8px 0 0">The detector scores risk and recommends. It never blocks on its own, so a model error cannot silently punish a legitimate developer.</p></div>';
+    if(o.mon){
+      h+='<div class="tsec"><h3>3. Political Targeting Monitor '+(o.mon.flag?'<span class="pill warn">Flagged</span>':'<span class="pill ok">Recorded</span>')+'</h3>';
+      h+='<div class="kv" style="margin-bottom:8px"><dt>Paid for by</dt><dd>'+esc(o.mon.payer)+'</dd><dt>Declared purpose</dt><dd>'+esc(o.mon.purpose)+'</dd></div>';
+      h+='<div class="chips">'+o.mon.crit.map(c=>'<span class="pill '+(c.inf?'warn':'neu')+'">'+esc(c.label)+' · '+c.src+'</span>').join('')+'</div>';
+      h+='<p class="small muted" style="margin:8px 0 0">'+(o.mon.flag?'Inferred psychological traits are part of the audience definition. A person must review this before any ad is delivered.':'Only declared data is used. The criteria are recorded and shown to people who receive the ad.')+'</p></div>';
+    }
+  }
+  $('#trace').innerHTML=h;
+}
+
+/* ---------- review view ---------- */
+function renderReview(){
+  const n=queue.length;$('#qbadge').textContent=n;$('#qbadge').style.display=n?'':'none';
+  const pend=Math.round(stats.total?100*stats.escalated/stats.total:0);
+  $('#stats').innerHTML='<div class="stat"><span class="caps">Waiting</span><b>'+n+'</b></div><div class="stat"><span class="caps">Decided by people</span><b>'+decided.length+'</b></div><div class="stat"><span class="caps">Requests so far</span><b>'+stats.total+'</b></div><div class="stat"><span class="caps">Sent to a person</span><b>'+pend+'%</b><span class="small muted">'+stats.escalated+' of '+stats.total+' requests</span></div>';
+  $('#queue').innerHTML=n?queue.map(q=>{
+    const hi=q.rk.band==='High';
+    return '<article class="qcard '+(hi?'high':'')+'" id="q-'+q.id+'"><div class="qhead"><h3>'+esc(q.A)+'</h3><span class="muted">'+esc(PURPOSES[q.r.purpose])+'</span><span class="pill '+(hi?'bad':'warn')+'">'+q.rk.band+' · '+q.rk.score+'</span>'+(q.mon&&q.mon.flag?'<span class="pill warn">Targeting flagged</span>':'')+'<span class="spacer"></span><span class="small muted mono">'+q.id+' · '+fmtT(q.ts)+'</span></div>'
+    +'<div class="qgrid"><div><div class="caps" style="margin-bottom:6px">Why it was flagged</div>'+(q.rk.signals.map(s=>'<div class="sig"><b>+'+s.p+'</b><span>'+esc(s.l)+'</span></div>').join('')||'<span class="muted">No risk signals.</span>')+'</div>'
+    +'<div><div class="caps" style="margin-bottom:6px">Request</div><dl class="kv"><dt>Data</dt><dd>'+esc(list(q.r.cats))+'</dd><dt>Whose</dt><dd>'+(q.r.subjects==='user'?'Consenting user only':'User and friends')+'</dd><dt>Action</dt><dd>'+({store:'Store and use as declared',derive:'Derive new traits',audience:'Build an ad audience'})[q.r.proc]+'</dd><dt>Retention</dt><dd>'+q.r.days+' days</dd></dl>'
+    +(q.mon?'<div class="chips" style="margin-top:8px">'+q.mon.crit.map(c=>'<span class="pill '+(c.inf?'warn':'neu')+'">'+esc(c.label)+'</span>').join('')+'</div>':'')+'</div></div>'
+    +'<div class="suggest"><b>PoliCheck suggests: '+(q.rec==='reject'?'do not release.':'needs your judgement.')+'</b> <span class="muted">This is a recommendation. You decide, and your name and reason are logged.</span></div>'
+    +'<div class="fld" style="margin:0"><label for="note-'+q.id+'">Reason for your decision (required)</label><textarea id="note-'+q.id+'" placeholder="Explain what you checked and why."></textarea></div>'
+    +'<div class="acts"><button class="btn ok" data-d="approve" data-id="'+q.id+'">Approve</button><button class="btn bad" data-d="reject" data-id="'+q.id+'">Reject</button><span class="err" id="err-'+q.id+'"></span></div></article>';
+  }).join(''):'<div class="empty">Nothing waiting. Run scenario 3 or 4 on the Developer tab to send a case here.</div>';
+  $('#decided').innerHTML=decided.length?decided.map(d=>'<div class="dcard"><span class="pill '+(d.verdict==='approve'?'ok':'bad')+'">'+(d.verdict==='approve'?'Approved':'Rejected')+'</span><div><b>'+esc(d.item.A)+'</b> · '+esc(PURPOSES[d.item.r.purpose])+' <span class="muted small">('+d.item.rk.band+' '+d.item.rk.score+', '+fmtT(d.ts)+')</span><div class="muted">“'+esc(d.note)+'”'+(d.verdict==='approve'&&d.item.rec==='reject'?' <span class="pill warn">Override of PoliCheck suggestion</span>':'')+'</div></div></div>').join(''):'<span class="muted">No decisions yet. Approvals and rejections appear here and in the audit log.</span>';
+}
+
+/* ---------- regulator view ---------- */
+function verify(){
+  let prev='0'.repeat(64);
+  for(let i=0;i<log.length;i++){const e=log[i];if(e.prev!==prev||sha256(canon(e))!==e.hash)return {ok:false,at:e.n};prev=e.hash;}
+  return {ok:true};
+}
+let vres=null;
+function renderLog(){
+  const v=vres||verify();const el=$('#integrity');
+  el.className='integrity '+(vres?(vres.ok?'good':'broke'):'');
+  el.innerHTML=(vres?(vres.ok?'<span class="ic ok">✓</span><b>Chain intact.</b> <span>All '+log.length+' entries match their recorded hashes.</span>':'<span class="ic bad">✕</span><b>Chain broken at entry #'+vres.at+'.</b> <span>That entry was changed after it was written.</span>'):'<b>Integrity not checked yet.</b> <span class="muted">'+log.length+' entries.</span>')
+   +'<span class="spacer"></span><button class="btn primary" id="b-verify">Verify chain</button><button class="btn" id="b-tamper">'+(tampered?'Undo tampering':'Simulate tampering')+'</button>';
+  const F={all:'All',rejected:'Rejected',escalated:'Escalated',human:'Human decisions',override:'Overrides'};
+  $('#filters').innerHTML=Object.keys(F).map(k=>'<button class="fchip" data-f="'+k+'" aria-pressed="'+(filter===k)+'">'+F[k]+'</button>').join('');
+  const rows=log.filter(e=>filter==='all'||(filter==='rejected'&&/^rejected/.test(e.decision))||(filter==='escalated'&&e.decision==='escalated')||(filter==='human'&&e.by!=='system')||(filter==='override'&&e.override));
+  const dp=d=>/^rejected|rejected by/.test(d)?'bad':/^escalated/.test(d)?'warn':'ok';
+  $('#logtable').innerHTML='<thead><tr><th>#</th><th>Time</th><th>Requester</th><th>Data</th><th>Purpose</th><th>Consent</th><th>Risk</th><th>Decision</th><th>By</th><th>Override</th><th>Reason</th><th>Hash</th></tr></thead><tbody>'
+   +rows.slice().reverse().map(e=>'<tr class="'+(vres&&!vres.ok&&vres.at===e.n?'bad-row':'')+'"><td class="nw mono">'+e.n+'</td><td class="nw mono">'+fmtT(e.ts)+'</td><td class="nw">'+esc(e.who)+(e.sample?' <span class="pill neu">sample</span>':'')+'</td><td>'+esc(e.data)+'</td><td>'+esc(e.purpose)+'</td><td class="nw"><span class="pill '+(e.consent==='valid'?'ok':e.consent==='violation'?'bad':'neu')+'">'+e.consent+'</span></td><td class="nw">'+esc(e.risk)+'</td><td class="nw"><span class="pill '+dp(e.decision)+'">'+esc(e.decision)+'</span></td><td class="nw">'+esc(e.by)+'</td><td>'+(e.override?'<span class="pill warn">override</span>':'')+'</td><td>'+esc(e.detail)+'</td><td class="hash">'+e.hash.slice(0,10)+'…</td></tr>').join('')+'</tbody>';
+}
+
+/* ---------- end user view ---------- */
+function renderUser(){
+  $('#grants').innerHTML=Object.keys(APPS).map(k=>{const g=grants[k];return '<div class="grant '+(g.active?'':'off')+'"><div style="display:flex;gap:8px;align-items:center"><h3 style="font-size:15px">'+APPS[k].name+'</h3><span class="pill '+(g.active?'ok':'neu')+'">'+(g.active?'Active':'Withdrawn')+'</span></div>'
+   +'<dl class="kv"><dt>May use</dt><dd>'+esc(list(g.cats))+'</dd><dt>Only for</dt><dd>'+esc(PURPOSES[g.purpose])+'</dd><dt>For how long</dt><dd>'+g.days+' days</dd><dt>Other uses</dt><dd>Not allowed</dd><dt>Friends’ data</dt><dd>Never</dd></dl>'
+   +'<div><button class="btn" data-g="'+k+'" id="g-'+k+'">'+(g.active?'Withdraw permission':'Restore permission')+'</button></div></div>';}).join('');
+  const lines=log.slice().reverse().slice(0,8).map(e=>{
+    let k,t;
+    if(/^rejected$/.test(e.decision)){k='bad';t='<b>'+esc(e.who)+'</b> asked for '+esc(e.data.toLowerCase())+' for “'+esc(e.purpose.toLowerCase())+'”. <b>Blocked.</b> Failed checks: '+esc(e.detail)+'.';}
+    else if(e.decision==='escalated'){k='warn';t='<b>'+esc(e.who)+'</b> made a request that a person must review before anything is released.';}
+    else if(/reviewer/.test(e.decision)){k=/^approved/.test(e.decision)?'warn':'ok';t='A privacy officer '+(/^approved/.test(e.decision)?'<b>approved</b>':'<b>rejected</b>')+' the request from <b>'+esc(e.who)+'</b>. Reason: “'+esc(e.detail.replace(/[.\s]+$/,''))+'”.';}
+    else{k='ok';t='<b>'+esc(e.who)+'</b> received only what it needed for “'+esc(e.purpose.toLowerCase())+'”. '+esc(e.detail.charAt(0).toUpperCase()+e.detail.slice(1))+'.';}
+    return '<div class="fi">'+ico(k)+'<div>'+t+'<div class="small muted mono">'+fmtT(e.ts)+' · log #'+e.n+'</div></div></div>';}).join('');
+  $('#feed').innerHTML=lines||'<span class="muted">No activity yet.</span>';
+  $('#ads').innerHTML=ads.length?ads.map(a=>'<div class="ad '+(a.inferred.length?'risky':'')+'"><h4>Why you are seeing this ad <span class="muted small mono">· '+fmtT(a.ts)+'</span></h4><dl class="kv"><dt>Paid for by</dt><dd>'+esc(a.payer)+'</dd><dt>Targeted using</dt><dd>'+a.crit.map(c=>esc(c.label)).join(', ')+'</dd><dt>Data source</dt><dd>'+(a.inferred.length?'Declared data and <b>inferred psychological traits</b>':'Data you declared yourself')+'</dd><dt>Approved by</dt><dd>'+(a.by==='system'?'Automatic checks (low risk)':'A privacy officer')+'</dd></dl></div>').join(''):'<span class="muted">No political ads have been approved yet.</span>';
+}
+
+/* ---------- wiring ---------- */
+function renderAll(){renderReview();renderLog();renderUser();}
+function show(v){
+  ['dev','review','regulator','user'].forEach(k=>{$('#view-'+k).hidden=k!==v;$('#tab-'+k).setAttribute('aria-pressed',k===v?'true':'false');});
+  try{history.replaceState(null,'','#'+v);}catch(e){}
+  renderAll();
+}
+function seed(){
+  const base=Date.now()-4*3600*1000,gap=[0,47,95,140];
+  [1,0,2,4].forEach((si,j)=>runRequest(JSON.parse(JSON.stringify(SCN[si].r)),{ts:base+gap[j]*60000,sample:true}));
+}
+function init(){
+  grants=JSON.parse(JSON.stringify(DEFAULT_GRANTS));log=[];queue=[];decided=[];ads=[];stats={total:0,escalated:0};qid=0;tampered=null;vres=null;filter='all';
+  seed();pickScn(0);resetPipe();
+  $('#verdict').className='verdict';$('#verdict').innerHTML='<div class="vb"><div class="vt">Ready</div><div class="muted">Send the request to see which stage stops it, flags it or lets it through.</div></div>';
+  $('#trace').innerHTML='<div class="empty">The rule-by-rule explanation appears here after you send a request.</div>';renderAll();
+}
+function boot(){
+  fillStatic();
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('button');if(!t)return;
+    if(t.dataset.view)show(t.dataset.view);
+    else if(t.dataset.go)show(t.dataset.go);
+    else if(t.classList.contains('scn')&&!busy)pickScn(+t.dataset.i);
+    else if(t.dataset.d){
+      const id=t.dataset.id,note=($('#note-'+id).value||'').trim();
+      if(note.length<8){$('#err-'+id).textContent='Add a reason of at least a few words.';return;}
+      decide(id,t.dataset.d,note);renderAll();
+    }
+    else if(t.dataset.f){filter=t.dataset.f;renderLog();}
+    else if(t.dataset.g){grants[t.dataset.g].active=!grants[t.dataset.g].active;renderUser();}
+    else if(t.id==='b-verify'){vres=verify();renderLog();}
+    else if(t.id==='b-tamper'){
+      if(tampered){tampered.e.decision=tampered.was;tampered=null;}
+      else{const e=log.find(x=>x.decision==='rejected')||log[1];tampered={e:e,was:e.decision};e.decision='released (minimised)';}
+      vres=null;renderLog();
+    }
+  });
+  $('#f-proc').addEventListener('change',syncCond);
+  $('#send').addEventListener('click',()=>{if(busy)return;vres=null;const o=runRequest(readForm());animate(o);renderReview();renderUser();renderLog();});
+  $('#reset').addEventListener('click',()=>{if(!busy)init();});
+  window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(['dev','review','regulator','user'].indexOf(h)>=0)show(h);});
+  init();
+  const h=location.hash.slice(1);if(['review','regulator','user'].indexOf(h)>=0)show(h);
+}
+boot();
+})();
+</script>
+
+</body></html>
